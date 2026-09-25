@@ -1,16 +1,12 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Middleware ──────────────────────────────────────────────────────────────
-const isProduction = process.env.NODE_ENV === "production";
-if (!isProduction) {
-  app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
-}
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
 app.use(express.json());
 
 // ── Health ──────────────────────────────────────────────────────────────────
@@ -29,19 +25,10 @@ app.use("/api/players", playerRouter);
 app.use("/api/analyse", analyseRouter);
 app.use("/api/mentor",  mentorRouter);
 
-// ── Static frontend (production) ────────────────────────────────────────────
-if (isProduction) {
-  const distPath = path.join(__dirname, "../../frontend/dist");
-  app.use(express.static(distPath));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
-} else {
-  // ── 404 fallback (dev only) ──────────────────────────────────────────────
-  app.use((_req, res) => {
-    res.status(404).json({ error: "ROUTE_NOT_FOUND" });
-  });
-}
+// ── 404 fallback ────────────────────────────────────────────────────────────
+app.use((_req, res) => {
+  res.status(404).json({ error: "ROUTE_NOT_FOUND" });
+});
 
 // ── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
