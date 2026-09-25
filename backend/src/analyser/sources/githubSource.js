@@ -42,7 +42,7 @@ function parseGitHubUrl(url) {
     .replace(/\.git$/, "");
 
   const match = normalised.match(
-    /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\/tree\/([^/]+))?(?:\/.*)?$/
+    /^https?:\/\/github\.com\/([^/?#]+)\/([^/?#]+?)(?:\.git)?(?:\/tree\/([^?#]+))?(?:\/.*)?\/?(?:[?#].*)?$/i
   );
 
   if (!match) {
@@ -53,6 +53,9 @@ function parseGitHubUrl(url) {
   }
 
   const [, owner, repo, branchFromUrl] = match;
+  if (!/^[A-Za-z0-9-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(repo)) {
+    throw new Error("GITHUB_URL_PARSE_ERROR: Invalid GitHub owner or repository name");
+  }
   return {
     owner,
     repo,
@@ -89,7 +92,7 @@ async function cloneRepo(cloneUrl, branch, token) {
 
   // Inject PAT into URL for private repos
   const authenticatedUrl = token
-    ? cloneUrl.replace("https://", `https://${token}@`)
+    ? cloneUrl.replace("https://", `https://x-access-token:${encodeURIComponent(token)}@`)
     : cloneUrl;
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "onboardquest-"));
@@ -103,7 +106,7 @@ async function cloneRepo(cloneUrl, branch, token) {
   } catch (err) {
     // Clean up temp dir on failure
     fs.rmSync(tmpDir, { recursive: true, force: true });
-    throw new Error(`GIT_CLONE_FAILED: ${err.message}`);
+    throw new Error(`GIT_CLONE_FAILED: ${String(err.message || "Git clone failed").replace(authenticatedUrl, cloneUrl)}`);
   }
 
   return tmpDir;
@@ -171,8 +174,12 @@ async function fetchViaApi(owner, repo, branch, token) {
   // Download up to 500 files (API rate-limit friendly)
   const toDownload = eligible.slice(0, 500);
 
-  await Promise.all(
-    toDownload.map(async (node) => {
+  let downloaded = 0;
+  let failed = 0;
+  const workers = Array.from({ length: Math.min(8, toDownload.length) }, async () => {
+    while (toDownload.length) {
+      const node = toDownload.pop();
+      if (!node) return;
       try {
         const { data } = await octokit.rest.repos.getContent({
           owner,
@@ -185,11 +192,19 @@ async function fetchViaApi(owner, repo, branch, token) {
         const dest = path.join(tmpDir, node.path);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, typeof data === "string" ? data : Buffer.from(data));
+        downloaded += 1;
       } catch {
+        failed += 1;
         // Skip individual download failures — the analyser will note missing files
       }
-    })
-  );
+    }
+  });
+  await Promise.all(workers);
+
+  if (downloaded === 0) {
+    cleanup(tmpDir);
+    throw new Error(`GITHUB_API_FETCH_FAILED: Could not download repository files${failed ? ` (${failed} requests failed)` : ""}`);
+  }
 
   return tmpDir;
 }
@@ -222,8 +237,14 @@ async function fetchGitHub(url, branch, token) {
   const gitAvailable = await isGitAvailable();
 
   if (gitAvailable) {
-    tmpDir = await cloneRepo(cloneUrl, effectiveBranch, token);
-  } else {
+    try {
+      tmpDir = await cloneRepo(cloneUrl, effectiveBranch, token);
+    } catch (err) {
+      warnings.push(`Git clone failed; using the GitHub API fallback. (${err.message})`);
+    }
+  }
+
+  if (!tmpDir) {
     warnings.push(
       "git not found in PATH — falling back to GitHub Contents API (max 500 files)."
     );

@@ -130,7 +130,8 @@ async function analyse(request) {
   }
 
   // ── Step 2: Parse + classify every file ────────────────────────────────
-  const analysedFiles = [];
+  try {
+    const analysedFiles = [];
 
   for (const absPath of filePaths) {
     try {
@@ -148,8 +149,6 @@ async function analyse(request) {
   const stats = buildStats(analysedFiles);
 
   // ── Step 5: Clean up temp directory (GitHub only) ──────────────────────
-  if (tmpDir) cleanup(tmpDir);
-
   // ── Step 6: Build and return the full result object ────────────────────
   /** @type {import('./schema').AnalyseResult} */
   const result = {
@@ -163,7 +162,10 @@ async function analyse(request) {
     warnings,
   };
 
-  return result;
+    return result;
+  } finally {
+    if (tmpDir) cleanup(tmpDir);
+  }
 }
 
 module.exports = { analyse };

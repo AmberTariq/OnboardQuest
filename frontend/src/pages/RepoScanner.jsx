@@ -68,10 +68,11 @@ export default function RepoScanner({ repoUrl, onComplete, onError }) {
 
     async function doAnalyse() {
       try {
-        const res = await fetch("/api/analyse", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ target: repoUrl, slim: false }),
+        const isDemo = repoUrl === "DEMO";
+        const res = await fetch(isDemo ? "/api/analyse/demo" : "/api/analyse", {
+          method:  isDemo ? "GET" : "POST",
+          headers: isDemo ? undefined : { "Content-Type": "application/json" },
+          body:    isDemo ? undefined : JSON.stringify({ target: repoUrl, slim: false }),
           signal:  ctrl.signal,
         });
 
@@ -109,22 +110,10 @@ export default function RepoScanner({ repoUrl, onComplete, onError }) {
         ]);
         setProgress(100);
 
-        // Fall back to the demo endpoint
-        try {
-          const demo = await fetch("/api/analyse/demo");
-          const data = await demo.json();
-          if (!mounted.current) return;
-          setDone(true);
-          setLogLines((prev) => [
-            ...prev,
-            { text: `> DEMO DATA LOADED. STARTING ADVENTURE.`, cls: "scanner-log--success" },
-          ]);
-          setTimeout(() => {
-            if (mounted.current) onComplete(data);
-          }, 1200);
-        } catch (demoErr) {
-          if (mounted.current) onError(demoErr.message);
-        }
+        setDone(true);
+        setTimeout(() => {
+          if (mounted.current) onError(err.message);
+        }, 1200);
       }
     }
 

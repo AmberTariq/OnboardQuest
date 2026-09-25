@@ -258,7 +258,18 @@ export default function ChallengePanel({ island, onClose, onComplete }) {
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [completedIds,    setCompletedIds]    = useState(new Set());
 
-  const challenges = CHALLENGE_TEMPLATES[island?.kind] || FALLBACK_CHALLENGES;
+  const baseChallenges = CHALLENGE_TEMPLATES[island?.kind] || FALLBACK_CHALLENGES;
+  const files = (island?.files || []).slice(0, 4);
+  const symbols = (island?.keySymbols || []).slice(0, 5);
+  const repositoryFocus = [
+    files.length ? `Files: ${files.join(", ")}.` : "",
+    symbols.length ? `Detected symbols: ${symbols.join(", ")}.` : "",
+  ].filter(Boolean).join(" ");
+  const challenges = baseChallenges.map((challenge) => ({
+    ...challenge,
+    id: `${island?.id || "layer"}_${challenge.id}`,
+    prompt: repositoryFocus ? `${challenge.prompt}\n\nRepository focus — ${repositoryFocus}` : challenge.prompt,
+  }));
   const allDone    = challenges.every((c) => completedIds.has(c.id));
   const earnedXp   = challenges
     .filter((c) => completedIds.has(c.id))

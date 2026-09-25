@@ -11,6 +11,7 @@
 "use strict";
 
 const { Router } = require("express");
+const path = require("path");
 const { analyse } = require("../analyser");
 
 const router = Router();
@@ -30,14 +31,15 @@ function validateTarget(target) {
   }
   const t = target.trim();
   const isGitHub = /^https?:\/\/github\.com\//i.test(t) || /^git@github\.com:/i.test(t);
-  const isAbsolute = require("path").isAbsolute(t);
-  const isRelative = t.startsWith("./") || t.startsWith("../");
+  if (isGitHub) return null;
 
-  if (!isGitHub && !isAbsolute && !isRelative) {
-    return (
-      "`target` must be either a GitHub URL " +
-      "(https://github.com/owner/repo) or a local path (absolute or starting with ./ or ../)."
-    );
+  const localRoot = process.env.ANALYSIS_LOCAL_ROOT;
+  if (!localRoot) return "`target` must be a GitHub URL (https://github.com/owner/repo).";
+
+  const root = path.resolve(localRoot);
+  const candidate = path.resolve(t);
+  if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) {
+    return "Local paths must stay within ANALYSIS_LOCAL_ROOT.";
   }
   return null;
 }
@@ -81,7 +83,7 @@ router.post("/", async (req, res) => {
     return res.json(result);
   } catch (err) {
     // Distinguish user errors from internal errors
-    const isUserError = /^(LOCAL_SOURCE_NOT_FOUND|GITHUB_URL_PARSE_ERROR|ANALYSE_ERROR)/.test(
+    const isUserError = /^(LOCAL_SOURCE_|GITHUB_URL_PARSE_ERROR|GIT_CLONE_FAILED|GITHUB_API_FETCH_FAILED|ANALYSE_ERROR)/.test(
       err.message || ""
     );
 
@@ -120,7 +122,7 @@ router.post("/levels", async (req, res) => {
     const { files: _files, ...slim } = result;
     return res.json(slim);
   } catch (err) {
-    const isUserError = /^(LOCAL_SOURCE_NOT_FOUND|GITHUB_URL_PARSE_ERROR|ANALYSE_ERROR)/.test(
+    const isUserError = /^(LOCAL_SOURCE_|GITHUB_URL_PARSE_ERROR|GIT_CLONE_FAILED|GITHUB_API_FETCH_FAILED|ANALYSE_ERROR)/.test(
       err.message || ""
     );
     return res.status(isUserError ? 400 : 500).json({
