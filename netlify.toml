@@ -1,0 +1,17 @@
+[build]
+  command = "npm run install:all && npm --prefix frontend run build"
+  publish = "frontend/dist"
+
+# Redirect API calls to your backend or serverless functions if hosted
+# If your backend is hosted separately (e.g., Render/Railway), update this proxy rule:
+# [redirects]
+#   from = "/api/*"
+#   to = "https://your-backend-url.com/api/:splat"
+#   status = 200
+#   force = true
+
+# Handle SPA client-side routing (sends all non-file requests to index.html)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
