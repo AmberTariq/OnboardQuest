@@ -307,9 +307,9 @@ const DIFF_STYLE = {
 // ─── Main drawer component ────────────────────────────────────────────────────
 
 /**
- * @param {{ island: Object|null, onClose: () => void }} props
+ * @param {{ island: Object|null, onClose: () => void, onChallenge?: (island) => void, onComplete?: (id) => void }} props
  */
-export default function MentorDrawer({ island, onClose }) {
+export default function MentorDrawer({ island, onClose, onChallenge, onComplete }) {
   const [closing, setClosing] = useState(false);
 
   const { status, rawText, briefing, warning, startBrief } = useMentorBrief(island);
@@ -496,9 +496,22 @@ export default function MentorDrawer({ island, onClose }) {
             ↺ RE-BRIEF
           </button>
 
+          {onChallenge && (
+            <button
+              className="pixel-btn pixel-btn--accent"
+              onClick={() => { onChallenge(island); handleClose(); }}
+              style={{ fontSize: "0.42rem", padding: "5px 10px" }}
+            >
+              ⚔ CHALLENGES
+            </button>
+          )}
+
           <button
             className="pixel-btn pixel-btn--primary"
-            onClick={handleClose}
+            onClick={() => {
+              if (onComplete) onComplete(island.id);
+              handleClose();
+            }}
             style={{ fontSize: "0.42rem", padding: "5px 10px" }}
           >
             ✓ UNDERSTOOD
